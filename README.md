@@ -152,6 +152,6 @@ Reviewing the working script, highlighted are the
 These three items represent the essence of this project.
 
 Now pusing files to github
-![](
+![](./img/git%20push.png)
 
 
