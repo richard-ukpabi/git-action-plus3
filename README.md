@@ -145,13 +145,26 @@ Installing each configuration, starting with typescript.
 ![](./img/working%20script.png)
 
 Reviewing the working script, highlighted are the 
-1. node version
-2. npm cache
-3. run lint
+1. node version: This shows multi-version deployment on node version 198 and node version 20.
+2. npm cache: This helps to ensure the installed dependencies remain the same as long as the package-lock.json is unchanged.
+3. lint This help as code analyser
 
 These three items represent the essence of this project.
 
 Now pusing files to github
-![](./img/git%20push.png)
+![push](./img/git%20push.png)
+
+Result of test:
+1. The pictures show 
+![node 18&20](./img/2%20jobs.png)
+2. lint detecting error in code: 
+![code error](./img/planned%20error%20in%20code.png)
+Detected by lint
+![lint detected error](./img/lint%20decteting%20error%20in%20code.png)
+
+3. successful job run
+![job ran successfully](./img/successful%20jobs.png)
+
+End of project
 
 
