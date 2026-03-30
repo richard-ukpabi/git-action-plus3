@@ -12,7 +12,7 @@ jobs:
 
     env:
       AWS_REGION: eu-west-2
-      ECR_REPO: 020671572019.dkr.ecr.eu-west-2.amazonaws.com/git-action-plus3
+      ECR_REPO: 020671572019.dkr.ecr.eu-west-1.amazonaws.com/git-action-plus3
       BLUE_ENV: git-action-plus3-production
       GREEN_ENV: git-action-plus3-green
       STAGING_ENV: git-action-plus3-staging
