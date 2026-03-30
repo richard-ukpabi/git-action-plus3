@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      AWS_REGION: eu-west-2
+      AWS_REGION: eu-west-1
       ECR_REPO: 020671572019.dkr.ecr.eu-west-1.amazonaws.com/git-action-plus3
       BLUE_ENV: git-action-plus3-production
       GREEN_ENV: git-action-plus3-green
