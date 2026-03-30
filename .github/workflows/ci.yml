@@ -31,6 +31,9 @@ jobs:
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v1
 
+      - name: install dependencies
+        run: npm ci
+
       - name: Lint
         run: npm run lint
 
