@@ -42,8 +42,8 @@ jobs:
         run: npm test
 
       - name: Build Docker image
-        run: docker build -t $ECR_REPO:${{ env.IMAGE_TAG }} .
-          echo "IMAGE_TAG=$TAG" >> $GITHUB_ENV
+        run: docker build -t git-action-plus3 .
+          
 
       - name: Tag image
         run: |
