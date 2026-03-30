@@ -1,31 +1,35 @@
-name: CI
+name: CI/CD to Elastic Beanstalk
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    branches:
+      - main
+      - develop
 
 jobs:
-  lint-test-build:
+  deploy:
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        node-version: [18, 20]
+    env:
+      AWS_REGION: eu-west-2
+      ECR_REPO: 020671572019.dkr.ecr.eu-west-2.amazonaws.com/git-action-plus3
+      BLUE_ENV: git-action-plus3-production
+      GREEN_ENV: git-action-plus3-green
+      STAGING_ENV: git-action-plus3-staging
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
         with:
-          node-version: ${{ matrix.node-version }}
-          cache: npm
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
 
       - name: Lint
         run: npm run lint
@@ -33,5 +37,98 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Build
-        run: npm run build
+      - name: Build Docker image
+        run: docker build -t git-action-plus3 .
+
+      - name: Tag image
+        run: |
+          if [ "${{ github.ref_name }}" = "develop" ]; then
+            TAG="staging-${{ github.run_number }}"
+          else
+            TAG="prod-${{ github.run_number }}"
+          fi
+          docker tag git-action-plus3:latest $ECR_REPO:$TAG
+          echo "IMAGE_TAG=$TAG" >> $GITHUB_ENV
+
+      - name: Push image to ECR
+        run: docker push $ECR_REPO:${{ env.IMAGE_TAG }}
+
+      - name: Create Dockerrun file
+        run: |
+          cat > Dockerrun.aws.json <<EOF
+          {
+            "AWSEBDockerrunVersion": 1,
+            "Image": {
+              "Name": "$ECR_REPO:${{ env.IMAGE_TAG }}",
+              "Update": "true"
+            },
+            "Ports": [
+              { "ContainerPort": 3000 }
+            ]
+          }
+          EOF
+
+      - name: Zip Dockerrun file
+        run: zip deploy.zip Dockerrun.aws.json
+
+      ###########################################################
+      # BLUE/GREEN DEPLOYMENT LOGIC
+      ###########################################################
+
+      - name: Deploy to GREEN environment
+        if: github.ref_name == 'main'
+        uses: einaregilsson/beanstalk-deploy@v21
+        with:
+          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          application_name: git-action-plus3
+          environment_name: ${{ env.GREEN_ENV }}
+          version_label: v-${{ github.run_number }}
+          region: ${{ env.AWS_REGION }}
+          deployment_package: deploy.zip
+
+      - name: Wait for GREEN health check
+        if: github.ref_name == 'main'
+        run: |
+          echo "Waiting for GREEN environment to become healthy..."
+          for i in {1..30}; do
+            STATUS=$(aws elasticbeanstalk describe-environments \
+              --environment-names $GREEN_ENV \
+              --query "Environments[0].Health" \
+              --output text)
+
+            echo "Health: $STATUS"
+
+            if [ "$STATUS" = "Green" ]; then
+              echo "Environment healthy!"
+              exit 0
+            fi
+
+            sleep 20
+          done
+
+          echo "Environment failed health check"
+          exit 1
+
+      - name: Swap BLUE/GREEN CNAMEs
+        if: github.ref_name == 'main'
+        run: |
+          aws elasticbeanstalk swap-environment-cnames \
+            --source-environment-name $BLUE_ENV \
+            --destination-environment-name $GREEN_ENV
+
+      ###########################################################
+      # STAGING DEPLOYMENT (DEVELOP BRANCH)
+      ###########################################################
+
+      - name: Deploy to STAGING
+        if: github.ref_name == 'develop'
+        uses: einaregilsson/beanstalk-deploy@v21
+        with:
+          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          application_name: git-action-plus3
+          environment_name: ${{ env.STAGING_ENV }}
+          version_label: v-${{ github.run_number }}
+          region: ${{ env.AWS_REGION }}
+          deployment_package: deploy.zip
